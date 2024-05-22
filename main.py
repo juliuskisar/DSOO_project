@@ -42,7 +42,7 @@ async def redirect():
 
 app.include_router(
     Controller.router,
-    prefix="/nutrii",
-    tags=["Nutrii Route"],
+    prefix="/client",
+    tags=["Client Route"],
     # dependencies=[Depends(api_key)],
 )

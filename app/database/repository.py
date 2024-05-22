@@ -8,30 +8,6 @@ class Repository:
         self.client = ApplicationBootstrap().get_mongo_client().clients
         self.picture = ApplicationBootstrap().get_mongo_client().pictures
 
-    def get_login(self, **kwargs):
-        try:
-            login = self.client.find_one(kwargs)
-            return ClientSchema(**login)
-        except Exception:
-            return None
-    
-    def insert_client(self, **kwargs):
-        self.client.insert_one(kwargs)
-        return True
-
-    def insert_picture(self, **kwargs):
-        self.picture.insert_one(kwargs)
-        return True
-
-    def get_all_pictures(self, **kwargs):
-        filter = {
-            k: v for k, v in kwargs.items()
-            if v is not None
-            and k in PictureSchema.__fields__.keys()
-        }
-        pictures = self.picture.find({**filter, "deleted_at": None})
-        return [PictureSchema(**picture) for picture in pictures]
-
     def get_example(self, **kwargs) -> ExampleSchema:
         example = self.example.find_one(kwargs)
         teste = ExampleSchema(**example)

@@ -1,4 +1,4 @@
-# nutrii_snap
+# DSOO
 
 ## Virtual Environment Mode
 
