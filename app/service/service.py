@@ -1,9 +1,13 @@
-from time import sleep
-import requests
-from app.database.repository import Repository
-import settings
 
-import json
+from pymongo import UpdateOne
+from app.database.repository import Repository
+import pandas as pd
+from io import StringIO
+from faker import Faker
+import random
+from datetime import datetime, timedelta
+
+from app.database.schema import ClientSchema, PurchaseSchema, UpdateCriteria
 
 
 class Service:
@@ -11,5 +15,109 @@ class Service:
         self.repository = Repository()
 
     def get_client(self, client_uuid: str):
-        client = self.repository.get_example(client_uuid)
+        client = self.repository.get_client(client_uuid=client_uuid)
         return client
+    
+    async def populate_client(self, number_of_clients: int):
+        fake = Faker()
+        clients_to_insert = []
+        for _ in range(number_of_clients):
+            client_uuid = fake.uuid4()
+            name = fake.name()
+            email = fake.email()
+            gender = random.choice(['Male', 'Female', 'Other'])
+            civil_status = random.choice(['Single', 'Married', 'Divorced', 'Widowed'])
+            number_of_dependents = random.randint(0, 5)
+            education_level = random.choice(['High School', 'Bachelor', 'Master', 'Doctorate'])
+            profession = fake.job()
+            income = round(random.uniform(20000, 120000), 2)
+            number_of_vehicle = random.randint(0, 3)
+            number_of_properties = random.randint(0, 3)
+            payment_method = random.choice(['Credit Card', 'Debit Card', 'Cash', 'Online Payment'])
+            favorite_product = fake.word()
+            hobbies = ', '.join(fake.words(nb=3))
+            favorite_music_genre = random.choice(['Rock', 'Pop', 'Jazz', 'Classical', 'Electronic', 'Hip-Hop'])
+            favorite_brand = fake.company()
+            favorite_social_media = random.choice(['Facebook', 'Twitter', 'Instagram', 'LinkedIn', 'TikTok'])
+            gadget_used = random.choice(['Smartphone', 'Tablet', 'PC', 'Laptop'])
+            classification = random.randint(0, 9)
+            
+            client = {
+                "client_uuid": client_uuid,
+                "name": name,
+                "email": email,
+                "gender": gender,
+                "civil_status": civil_status,
+                "number_of_dependents": number_of_dependents,
+                "education_level": education_level,
+                "profession": profession,
+                "income": income,
+                "number_of_vehicle": number_of_vehicle,
+                "number_of_properties": number_of_properties,
+                "payment_method": payment_method,
+                "favorite_product": favorite_product,
+                "last_purchase": None,
+                "favorites_list": None,
+                "hobbies": hobbies,
+                "favorite_music_genre": favorite_music_genre,
+                "favorite_brand": favorite_brand,
+                "favorite_social_media": favorite_social_media,
+                "gadget_used": gadget_used,
+                "classification": classification
+            }
+            clients_to_insert.append(client)
+        await self.repository.populate_client(clients_to_insert)
+        return {"message": f"{number_of_clients} clients inserted."}
+
+    async def populate_product(self, contents: str):
+        df = pd.read_csv(StringIO(contents))
+        data_to_insert = df.to_dict(orient="records")
+        data = await self.repository.populate_product(data_to_insert)
+        return data
+    
+    async def populate_favorites(self, update_criteria: UpdateCriteria = None):
+        clients = await self.repository.get_all_clients()
+        products = await self.repository.get_all_products()
+        number_of_changes = 0
+        for client in clients:
+            should_update = await self._check_update_necessity(client=client, update_criteria=update_criteria)
+            if should_update:
+                client.favorites_list = random.choices(products, k=5)
+                await self.repository.update_client(**client.dict())
+                number_of_changes += 1
+        return {"number of changes": number_of_changes}
+    
+    async def _check_update_necessity(self, client: ClientSchema, update_criteria: UpdateCriteria):
+        if update_criteria.value and client.last_purchase.total_value < update_criteria.value:
+            return True
+        if update_criteria.total_items and client.last_purchase.total_items < update_criteria.total_items:
+            return True
+        if update_criteria.new_items is not None:
+            return True
+        return False
+    
+    async def purchase_round(self):
+        clients = await self.repository.get_all_clients()
+        final_value = 0
+        final_items = 0
+        diferent_products = set()
+        for client in clients:
+            total_items = 0
+            total_value = 0
+            for item in client.favorites_list:
+                if len(item.name) == client.classification:
+                    total_items += 1
+                    total_value += item.price
+                    diferent_products.add(item.name)
+            final_value += total_value
+            final_items += total_items
+            client.last_purchase = PurchaseSchema(total_items=total_items, total_value=total_value)
+            await self.repository.update_client(**client.dict())
+        return {
+            "total_value": final_value,
+            "total_items": final_items,
+            "total_clients": len(clients),
+            "average_value_per_client": final_value/len(clients),
+            "average_items_per_client": final_items/len(clients),
+            "diferent_products": len(diferent_products)
+        }
