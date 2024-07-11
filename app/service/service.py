@@ -1,5 +1,6 @@
 
 from pymongo import UpdateOne
+from loguru import logger
 from app.database.repository import Repository
 import pandas as pd
 from io import StringIO
@@ -7,7 +8,7 @@ from faker import Faker
 import random
 from datetime import datetime, timedelta
 
-from app.database.schema import ClientSchema, PurchaseSchema, UpdateCriteria
+from app.database.schema import BreakCondition, ClientSchema, GoalsSchema, PurchaseSchema, SymptomSchema, UpdateCriteria
 
 
 class Service:
@@ -75,24 +76,25 @@ class Service:
         data = await self.repository.populate_product(data_to_insert)
         return data
     
-    async def populate_favorites(self, update_criteria: UpdateCriteria = None):
+    async def populate_favorites(self, plan: UpdateCriteria = None):
         clients = await self.repository.get_all_clients()
         products = await self.repository.get_all_products()
         number_of_changes = 0
         for client in clients:
-            should_update = await self._check_update_necessity(client=client, update_criteria=update_criteria)
-            if should_update:
+            must_update = await self._check_update_necessity(client, plan)
+            if must_update:
                 client.favorites_list = random.choices(products, k=5)
                 await self.repository.update_client(**client.dict())
                 number_of_changes += 1
+        logger.info(f"{number_of_changes} clients updated.")
         return {"number of changes": number_of_changes}
     
     async def _check_update_necessity(self, client: ClientSchema, update_criteria: UpdateCriteria):
-        if update_criteria.value and client.last_purchase.total_value < update_criteria.value:
+        if update_criteria.average_value_per_client and client.last_purchase.total_value < update_criteria.average_value_per_client:
             return True
-        if update_criteria.total_items and client.last_purchase.total_items < update_criteria.total_items:
+        if update_criteria.average_items_per_client and client.last_purchase.total_items < update_criteria.average_items_per_client:
             return True
-        if update_criteria.new_items is not None:
+        if update_criteria.total_clients and update_criteria.total_clients == 1001:
             return True
         return False
     
@@ -113,11 +115,30 @@ class Service:
             final_items += total_items
             client.last_purchase = PurchaseSchema(total_items=total_items, total_value=total_value)
             await self.repository.update_client(**client.dict())
-        return {
-            "total_value": final_value,
-            "total_items": final_items,
-            "total_clients": len(clients),
-            "average_value_per_client": final_value/len(clients),
-            "average_items_per_client": final_items/len(clients),
-            "diferent_products": len(diferent_products)
-        }
+        purchase = PurchaseSchema(
+            total_value=final_value,
+            total_items=final_items,
+            total_clients=len(clients),
+            average_value_per_client=final_value/len(clients),
+            average_items_per_client=final_items/len(clients),
+            diferent_products=len(diferent_products),
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        await self.repository.insert_purchase_monitor(purchase=purchase)
+        logger.info(f'purchase round finished. Total value: {final_value:.2f}, Total items: {final_items}, Total clients: {len(clients)}')
+        logger.info(f'Average value per client: {final_value/len(clients):.2f}, Average items per client: {final_items/len(clients)}')
+
+        return purchase
+    
+    async def populate_general_data(self):
+        last_purchase = PurchaseSchema(
+            total_items=10,
+            total_value=1000,
+            total_clients=100,
+            average_value_per_client=10,
+            average_items_per_client=0.10,
+            diferent_products=0,
+        )
+        await self.repository.insert_purchase_monitor(last_purchase)
+

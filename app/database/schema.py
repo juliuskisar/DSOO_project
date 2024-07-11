@@ -6,17 +6,23 @@ from typing import Optional
 
 
 class CustomBaseModel(BaseModel):
-    created_at: datetime = datetime.now()
-    updated_at: datetime = datetime.now()
-    deleted_at: Optional[datetime] = None
+    created_at: datetime | str = datetime.now()
+    updated_at: datetime | str = datetime.now()
+    deleted_at: Optional[datetime] | str = None
 
     class Config:
         from_attributes = True
         arbitrary_types_allowed = True
     
-    @classmethod
-    def to_dict(cls, obj):
-        return obj.dict()
+    def to_dict(self):
+        return self.model_dump()
+    
+    def stringnify_time(self):
+        self.updated_at = self.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+        self.created_at = self.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        if self.deleted_at:
+            self.deleted_at = self.deleted_at.strftime("%Y-%m-%d %H:%M:%S")
+        return self.model_dump()
 
 
 class ClientSchema(BaseModel):
@@ -63,9 +69,35 @@ class ProductSchema(BaseModel):
 class PurchaseSchema(CustomBaseModel):
     total_items: int | None = None
     total_value: float | None = None
+    total_clients: int | None = None
+    average_value_per_client: float | None = None
+    average_items_per_client: float | None = None
+    diferent_products: int | None = None
+
 
 
 class UpdateCriteria(BaseModel):
-    value: float | None = None
     total_items: int | None = None
-    new_items: bool | None = None
+    total_value: float | None = None
+    total_clients: int | None = None
+    average_value_per_client: float | None = None
+    average_items_per_client: float | None = None
+    diferent_products: int | None = None
+
+
+class BreakCondition(CustomBaseModel):
+    break_condition: bool = False
+
+
+class GoalsSchema(BaseModel):
+    total_items: int | None = None
+    total_value: float | None = None
+    total_clients: int | None = None
+    average_value_per_client: float | None = None
+    average_items_per_client: float | None = None
+    diferent_products: int | None = None
+
+
+class SymptomSchema(BaseModel):
+    update_symptom: bool = False
+    symptoms: list = []

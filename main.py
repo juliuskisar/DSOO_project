@@ -1,6 +1,7 @@
 from loguru import logger
 
 from fastapi import FastAPI
+import MAPE.mape as ControlLoop
 import app.handler.handler as Handler
 
 from starlette.responses import RedirectResponse
@@ -24,4 +25,10 @@ app.include_router(
     Handler.router,
     prefix="/client",
     tags=["Client Route"]
+)
+
+app.include_router(
+    ControlLoop.mape_router,
+    prefix="/mape",
+    tags=["MAPE Route"]
 )
