@@ -14,6 +14,7 @@ mape_router = APIRouter()
 
 @cbv(mape_router)
 class ControlLoop:
+    # MAPE-K loop
     def __init__(self):
         self.planner = Planner()
         self.analyzer = Analyzer()
